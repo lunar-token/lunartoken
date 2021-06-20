@@ -29,14 +29,13 @@ contract LiquidityAcquisition is InternalToken {
                     _uniswapV2Router.WETH()
                 )
             );
-
         uniswapV2Router = _uniswapV2Router;
         uniswapV2Pair = _uniswapV2Pair;
     }
 
     // Always expected to be overwritten by parent contract
     // since its' implementation is contract-specific
-    function _swap(address sender) internal virtual {}
+    function _checkSwapViability(address sender) internal virtual {}
 
     function swapTokensForBnb(uint256 tokenAmount) internal {
         address[] memory path = new address[](2);

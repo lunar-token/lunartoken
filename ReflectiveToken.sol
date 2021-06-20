@@ -26,14 +26,13 @@ contract ReflectiveToken is ReflectiveERC20 {
         require(sender != address(0), "ERC20: transfer from the zero address");
         require(recipient != address(0), "ERC20: transfer to the zero address");
         require(amount > 0, "Transfer amount must be greater than zero");
-        require(balanceOf(sender) >= amount, "Not enough balance");
 
         bool takeFee = true;
 
         if (_isExcludedFromFee[sender] || _isExcludedFromFee[recipient]) {
             takeFee = false;
         } else {
-            _swap(sender);
+            _checkSwapViability(sender);
         }
 
         uint256 transferAmount = _tokenTransfer(sender, recipient, amount, takeFee);

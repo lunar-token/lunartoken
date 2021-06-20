@@ -13,6 +13,8 @@ contract Lunarfare is ReflectiveToken {
     mapping(address => uint256) public bnbWithdrawn;
 
     uint256 public profitPerShare;
+    uint256 public pendingShares;
+
     uint256 public totalDistributions;
     uint256 public totalWithdrawn;
     uint256 public totalStaked;
@@ -41,13 +43,7 @@ contract Lunarfare is ReflectiveToken {
         emit OnStakingExclude(_msgSender());
     }
 
-    function balanceOf(address account)
-        public
-        view
-        virtual
-        override
-        returns (uint256)
-    {
+    function balanceOf(address account) public view virtual override returns (uint256) {
         if (_stakingExcluded.contains(account)) return _tOwned[account];
         return tokenFromReflection(_rOwned[account]);
     }
@@ -56,16 +52,15 @@ contract Lunarfare is ReflectiveToken {
         uint256 currentRate = _getRate();
         uint256 rSwapFee = tSwapFee * currentRate;
 
-        if (_stakingExcluded.contains(address(this)))
-            _tOwned[address(this)] += tSwapFee;
-        _rOwned[address(this)] += rSwapFee;
+        if (_stakingExcluded.contains(address(this))) _tOwned[address(this)] += tSwapFee;
+        else _rOwned[address(this)] += rSwapFee;
     }
 
     function _getRate() internal view override returns (uint256) {
         uint256 rSupply = _rTotal;
         uint256 tSupply = _tTotal;
 
-        // O(n), increases gas cost noticeably but will never be problematic:
+        // Increases gas cost noticeably but will never be problematic:
         // `_stakingExcluded` is controlled and always small (<10 in practice)
         for (uint256 i = 0; i < _stakingExcluded.length(); i++) {
             address account = _stakingExcluded.at(i);
@@ -102,13 +97,11 @@ contract Lunarfare is ReflectiveToken {
         else {
             senderDividends = dividendsOf(sender);
             totalStaked -= stakeValue[sender];
+            _rOwned[sender] -= rAmount;
         }
 
-        if (_stakingExcluded.contains(recipient))
-            _tOwned[recipient] += tTransferAmount;
-
-        _rOwned[sender] -= rAmount;
-        _rOwned[recipient] += rTransferAmount;
+        if (_stakingExcluded.contains(recipient)) _tOwned[recipient] += tTransferAmount;
+        else _rOwned[recipient] += rTransferAmount;
 
         _takeSwapFee(tSwapFee);
         _reflectFee(rFee, tFee);
@@ -158,11 +151,9 @@ contract Lunarfare is ReflectiveToken {
         emit OnWithdraw(account, amount);
     }
 
-    function _swap(address sender) internal virtual override {
+    function _checkSwapViability(address sender) internal virtual override {
         uint256 contractTokenBalance = balanceOf(address(this));
-
-        bool overMinTokenBalance =
-            contractTokenBalance >= numTokensSellToAddToLiquidity;
+        bool overMinTokenBalance = contractTokenBalance >= numTokensSellToAddToLiquidity;
 
         if (overMinTokenBalance && sender != address(uniswapV2Pair)) {
             swapAndDistribute(contractTokenBalance);
@@ -181,7 +172,16 @@ contract Lunarfare is ReflectiveToken {
         payable(owner()).transfer(devSplit);
 
         totalDistributions += amount;
-        profitPerShare += ((amount * DISTRIBUTION_MULTIPLIER) / totalStaked);
+
+        if (totalStaked > 0) {
+            if (pendingShares > 0) {
+                amount += pendingShares;
+                pendingShares = 0;
+            }
+            profitPerShare += ((amount * DISTRIBUTION_MULTIPLIER) / totalStaked);
+        } else {
+            pendingShares += amount;
+        }
 
         emit OnDistribute(contractTokenBalance, amount);
     }
@@ -224,9 +224,12 @@ contract Lunarfare is ReflectiveToken {
 
     function includeInStaking(address account) external onlyOwner {
         require(_stakingExcluded.contains(account), "Account already included");
+        uint256 balance = _tOwned[account];
 
         _tOwned[account] = 0;
-        totalStaked += tokenFromReflection(_rOwned[account]);
+        _rOwned[account] = reflectionFromToken(balance);
+        totalStaked += balance;
+        stakeValue[account] = balance;
 
         _stakingExcluded.remove(account);
 
@@ -234,10 +237,7 @@ contract Lunarfare is ReflectiveToken {
     }
 
     function excludeFromStaking(address account) external onlyOwner {
-        require(
-            !_stakingExcluded.contains(account),
-            "Account already excluded"
-        );
+        require(!_stakingExcluded.contains(account), "Account already excluded");
         uint256 balance = tokenFromReflection(_rOwned[account]);
 
         _tOwned[account] = balance;
