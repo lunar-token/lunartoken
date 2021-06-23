@@ -212,14 +212,13 @@ contract Lunar is ReflectiveToken {
         totalStaked += earnings;
     }
 
-    function withdraw(uint256 amount) external payable {
-        require(
-            dividendsOf(_msgSender()) >= amount,
-            "Cannot withdraw more dividends than you have earned."
-        );
+    function withdraw() external payable {
+        uint256 share = dividendsOf(_msgSender());
 
-        stakerPayouts[_msgSender()] += amount * profitPerShare;
-        _withdraw(_msgSender(), amount);
+        // Resetting dividends back to 0
+        stakerPayouts[_msgSender()] = stakeValue[_msgSender()] * profitPerShare;
+
+        _withdraw(_msgSender(), share);
     }
 
     function includeInStaking(address account) external onlyOwner {
