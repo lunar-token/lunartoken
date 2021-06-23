@@ -230,6 +230,7 @@ contract Lunar is ReflectiveToken {
         _rOwned[account] = reflectionFromToken(balance);
         totalStaked += balance;
         stakeValue[account] = balance;
+        stakerPayouts[account] = balance * profitPerShare;
 
         _stakingExcluded.remove(account);
 
@@ -246,6 +247,7 @@ contract Lunar is ReflectiveToken {
         _tOwned[account] = balance;
         totalStaked -= stakeValue[account];
         stakeValue[account] = 0;
+        stakerPayouts[account] = 0;
 
         _stakingExcluded.add(account);
 
