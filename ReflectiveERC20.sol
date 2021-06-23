@@ -198,6 +198,7 @@ contract ReflectiveERC20 is IERC20, Context, Ownable, LiquidityAcquisition {
     }
 
     function includeInFee(address account) public onlyOwner {
+        require(account != address(this), "Contract can't be included");
         _isExcludedFromFee[account] = false;
     }
 

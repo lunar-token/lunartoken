@@ -5,7 +5,7 @@ import "./EnumerableSet.sol";
 
 import "./ReflectiveToken.sol";
 
-contract Lunarfare is ReflectiveToken {
+contract Lunar is ReflectiveToken {
     using EnumerableSet for EnumerableSet.AddressSet;
 
     mapping(address => uint256) public stakeValue;
@@ -30,7 +30,7 @@ contract Lunarfare is ReflectiveToken {
     event OnStakingExclude(address account);
     event OnWithdrawIsolatedBNB(uint256 amount);
 
-    constructor() ReflectiveToken("Lunar", "LUNAR", 10**12, 9, 2, 6) {
+    constructor() ReflectiveToken("Lunar", "LUNAR", 10**10, 9, 2, 8) {
         _tOwned[_msgSender()] = _tTotal;
 
         // 0.03% of total supply
@@ -189,7 +189,7 @@ contract Lunarfare is ReflectiveToken {
     function dividendsOf(address staker) public view returns (uint256) {
         // Using `stakeValue` over actual balance because reflection shares cannot be calculated
         uint256 divPayout = stakeValue[staker] * profitPerShare;
-        require(divPayout >= stakerPayouts[staker], "dividend calc overflow");
+        if (divPayout < stakerPayouts[staker]) return 0;
 
         return (divPayout - stakerPayouts[staker]) / DISTRIBUTION_MULTIPLIER;
     }
@@ -209,17 +209,17 @@ contract Lunarfare is ReflectiveToken {
 
         stakeValue[_msgSender()] += earnings;
         stakerPayouts[_msgSender()] += earnings * profitPerShare;
+        totalStaked += earnings;
     }
 
     function withdraw(uint256 amount) external payable {
         require(
-            dividendsOf(msg.sender) >= amount,
+            dividendsOf(_msgSender()) >= amount,
             "Cannot withdraw more dividends than you have earned."
         );
 
-        stakerPayouts[msg.sender] += amount * DISTRIBUTION_MULTIPLIER;
-
-        _withdraw(msg.sender, amount);
+        stakerPayouts[_msgSender()] += amount * profitPerShare;
+        _withdraw(_msgSender(), amount);
     }
 
     function includeInStaking(address account) external onlyOwner {
@@ -240,8 +240,11 @@ contract Lunarfare is ReflectiveToken {
         require(!_stakingExcluded.contains(account), "Account already excluded");
         uint256 balance = tokenFromReflection(_rOwned[account]);
 
+        uint256 dividends = dividendsOf(account);
+        if (dividends > 0) _withdraw(account, dividends);
+
         _tOwned[account] = balance;
-        totalStaked -= balance;
+        totalStaked -= stakeValue[account];
         stakeValue[account] = 0;
 
         _stakingExcluded.add(account);
