@@ -21,7 +21,7 @@ contract LiquidityAcquisition is InternalToken {
 
     constructor() {
         IUniswapV2Router02 _uniswapV2Router = IUniswapV2Router02(
-            0xD99D1c33F9fC3444f8101754aBC46c52416550D1
+            0x10ED43C718714eb63d5aA57B78B54704E256024E
         );
         IUniswapV2Pair _uniswapV2Pair = IUniswapV2Pair(
             IUniswapV2Factory(_uniswapV2Router.factory()).createPair(
@@ -38,6 +38,16 @@ contract LiquidityAcquisition is InternalToken {
     // Always expected to be overwritten by parent contract
     // since its' implementation is contract-specific
     function _checkSwapViability(address sender) internal virtual {}
+
+    function _isSell(address sender, address recipient) internal view returns (bool) {
+        // Transfer to pair from non-router address is a sell swap
+        return sender != address(uniswapV2Router) && recipient == address(uniswapV2Pair);
+    }
+
+    function _isBuy(address sender) internal view returns (bool) {
+        // Transfer from pair is a buy swap
+        return sender == address(uniswapV2Pair);
+    }
 
     function swapTokensForBnb(uint256 tokenAmount) internal {
         address[] memory path = new address[](2);

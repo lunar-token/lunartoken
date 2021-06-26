@@ -19,6 +19,9 @@ contract Lunar is ReflectiveToken {
     uint256 public totalWithdrawn;
     uint256 public totalStaked;
 
+    uint256 public buyLimit;
+    uint256 public sellLimit;
+
     uint256 private immutable numTokensSellToAddToLiquidity;
     uint256 private constant DISTRIBUTION_MULTIPLIER = 2**64;
 
@@ -35,6 +38,10 @@ contract Lunar is ReflectiveToken {
 
         // 0.03% of total supply
         numTokensSellToAddToLiquidity = (30000 * _tTotal) / 10**8;
+
+        // 0.1% of total supply on both buy/sell initially
+        buyLimit = (1000 * _tTotal) / 10**6;
+        sellLimit = (1000 * _tTotal) / 10**6;
 
         _stakingExcluded.add(address(this));
         _stakingExcluded.add(_msgSender());
@@ -74,6 +81,22 @@ contract Lunar is ReflectiveToken {
         return rSupply / tSupply;
     }
 
+    function _validateTransfer(
+        address sender,
+        address recipient,
+        uint256 amount,
+        bool takeFee
+    ) private view {
+        // Excluded addresses don't have limits
+        if (takeFee) {
+            if (_isBuy(sender) && buyLimit != 0) {
+                require(amount <= buyLimit, "Buy amount exceeds limit");
+            } else if (_isSell(sender, recipient) && sellLimit != 0) {
+                require(amount <= sellLimit, "Sell amount exceeds limit");
+            }
+        }
+    }
+
     function _tokenTransfer(
         address sender,
         address recipient,
@@ -81,6 +104,7 @@ contract Lunar is ReflectiveToken {
         bool takeFee
     ) internal virtual override returns (uint256) {
         require(sender != recipient, "Sending to yourself is disallowed");
+        _validateTransfer(sender, recipient, amount, takeFee);
 
         (
             uint256 rAmount,
@@ -262,5 +286,26 @@ contract Lunar is ReflectiveToken {
 
             emit OnWithdrawIsolatedBNB(isolatedBnb);
         }
+    }
+
+    function updateBuyLimit(uint256 limit) external onlyOwner {
+        // Buy limit can only be 0.1% or disabled, set to 0 to disable
+        uint256 maxLimit = (1000 * _tTotal) / 10**6;
+        require(limit == maxLimit || limit == 0, "Buy limit out of bounds");
+
+        buyLimit = limit;
+    }
+
+    function updateSellLimit(uint256 limit) external onlyOwner {
+        // Min sell limit is 0.1%, max is 0.5%. Set to 0 to disable
+        uint256 minLimit = (1000 * _tTotal) / 10**6;
+        uint256 maxLimit = (5000 * _tTotal) / 10**6;
+
+        require(
+            (limit <= maxLimit && limit >= minLimit) || limit == 0,
+            "Sell limit out of bounds"
+        );
+
+        sellLimit = limit;
     }
 }
