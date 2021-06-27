@@ -16,6 +16,7 @@ contract Lunar is ReflectiveToken {
     uint256 public pendingShares;
 
     uint256 public totalDistributions;
+    uint256 public totalReflected;
     uint256 public totalWithdrawn;
     uint256 public totalStaked;
 
@@ -130,6 +131,7 @@ contract Lunar is ReflectiveToken {
         _takeSwapFee(tSwapFee);
         _reflectFee(rFee, tFee);
         _restake(sender, recipient, tTransferAmount, senderDividends);
+        totalReflected += tFee;
 
         return tTransferAmount;
     }
